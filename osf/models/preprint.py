@@ -380,6 +380,29 @@ class Preprint(DirtyFieldsMixin, VersionedGuidMixin, IdentifierMixin, Reviewable
 
         return preprint
 
+    def copy_contributors_from(self, resource):
+        """
+        Copies the contibutors from the resource (including permissions and visibility)
+        into this preprint.
+        Visibility, order, draft, and user are stored in PreprintContributor table.
+        Permissions are stored in guardian tables (use add_permission)
+        """
+
+        contribs = []
+        current_contributors = self.contributor_set.values_list('user_id', flat=True)
+        for contrib in resource.contributor_set.all():
+            if contrib.user.id not in current_contributors:
+                permission = contrib.permission
+                new_contrib = PreprintContributor(
+                    preprint=self,
+                    _order=contrib._order,
+                    visible=contrib.visible,
+                    user=contrib.user
+                )
+                contribs.append(new_contrib)
+                self.add_permission(contrib.user, permission, save=True)
+        PreprintContributor.objects.bulk_create(contribs)
+
     def get_last_not_rejected_version(self):
         """Get the last version that is not rejected.
         """

@@ -665,7 +665,8 @@ class PreprintContributorDetailSerializer(NodeContributorDetailSerializer, Prepr
 class PreprintContributorsUpdateSerializer(ser.Serializer):
 
     def update(self, instance, validated_data):
-        instance.copy_contributors_from(instance.registered_from)
+        if project := instance.node:
+            instance.copy_contributors_from(project)
         return instance
 
 
