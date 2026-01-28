@@ -21,6 +21,8 @@ class AddAdminOrModerator(TemplateView):
         return context
 
     def post(self, request, *args, **kwargs):
+        # import pydevd_pycharm
+        # pydevd_pycharm.settrace('host.docker.internal', port=1234, stdoutToServer=True, stderrToServer=True)
         provider = self.provider_class.objects.get(id=self.kwargs['provider_id'])
         data = dict(request.POST)
         del data['csrfmiddlewaretoken']  # just to remove the key from the form dict
