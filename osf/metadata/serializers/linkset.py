@@ -11,63 +11,71 @@ from collections.abc import (
 from collections import defaultdict
 import dataclasses
 import json
+from urllib.parse import urljoin, urlsplit, urlencode, urlunsplit
+
 import rdflib
+
 from ._base import MetadataSerializer
+from osf.metadata.osf_gathering import osfguid_from_iri
 from osf.metadata.rdfutils import DOI, DCTERMS, OWL, RDF, OSF, DCAT
 from website.settings import DOMAIN
-from urllib.parse import urljoin
 from website.util import web_url_for
+
 
 @dataclasses.dataclass
 class SignpostLink:
-    context_uri: str
-    relation_uri: str
+    anchor_uri: str
+    relation: str
     target_uri: str
-    target_attrs: Iterable[tuple(str, str)]
+    target_attrs: Iterable[tuple[str, str]] = ()
 
-from osf import models as osfdb
+
 class BaseSignpostLinkset(MetadataSerializer, abc.ABC):
     def _each_link(self) -> Iterator[SignpostLink]:
         focus_iri = self.basket.focus.iri
-        if isinstance(self.basket.focus.dbmodel, osfdb.BaseFileNode):
-            # type
+        if OSF.File == self.basket.focus.rdftype:
             for _type_iri in self.basket[DCTERMS.type | RDF.type]:
-                yield SignpostLink(focus_iri, 'type', str(_type_iri), ())
+                yield SignpostLink(focus_iri, 'type', str(_type_iri))
             # collection
             for _collection_uri in self.basket[OSF.isContainedBy]:
-                yield SignpostLink(focus_iri, 'collection', str(_collection_uri), ())
+                yield SignpostLink(focus_iri, 'collection', str(_collection_uri))
         else:
             # author
             for _creator_iri in self.basket[DCTERMS.creator]:
-                yield SignpostLink(focus_iri, 'author', str(_creator_iri), ())
+                yield SignpostLink(focus_iri, 'author', str(_creator_iri))
 
             # type
             for _type_iri in self.basket[DCTERMS.type | RDF.type]:
-                yield SignpostLink(focus_iri, 'type', str(_type_iri), ())
+                yield SignpostLink(focus_iri, 'type', str(_type_iri))
 
             # cite-as
             yield SignpostLink(focus_iri, 'cite-as', next((
                 _sameas_iri
                 for _sameas_iri in self.basket[OWL.sameAs]
                 if _sameas_iri.startswith(DOI)
-            ), focus_iri), ())
+            ), focus_iri))
 
-            _record_uri = web_url_for('metadata_download', guid=self.basket.focus.dbmodel._id)
-            path = urljoin(DOMAIN, _record_uri)
+            _base_metadata_url = urlsplit(urljoin(DOMAIN, web_url_for(
+                'metadata_download',  # name of a view function mapped in website/routes.py
+                guid=osfguid_from_iri(self.basket.focus.iri),
+            )))
             from osf.metadata.serializers import METADATA_SERIALIZER_REGISTRY
             # describedby
             for _format_key, _serializer in METADATA_SERIALIZER_REGISTRY.items():
+                _metadata_url = urlunsplit(_base_metadata_url.replace(
+                    query=urlencode({'format': _format_key}),
+                ))
                 yield SignpostLink(
                     focus_iri,
                     'describedby',
-                    path,
+                    _metadata_url,
                     [('type', _serializer.mediatype)]
                 )
 
             # license
             for _license_uri in self.basket[DCTERMS.rights]:
                 if not isinstance(_license_uri, rdflib.BNode):
-                    yield SignpostLink(focus_iri, 'license', str(_license_uri), ())
+                    yield SignpostLink(focus_iri, 'license', str(_license_uri))
 
             # item
             for _file_iri in self.basket[OSF.contains]:
@@ -92,12 +100,13 @@ class SignpostLinkset(BaseSignpostLinkset):
     def _serialize_link(self, link: SignpostLink) -> str:
         segments = [
             f'<{link.target_uri}>',
-            f'rel="{link.relation_uri}"',
-            f'anchor="{link.context_uri}"'
+            f'rel="{link.relation}"',
+            f'anchor="{link.anchor_uri}"'
         ]
         for key, value in link.target_attrs:
             segments.append(f'{key}="{value}"')
         return ' ; '.join(segments)
+
 
 class SignpostLinksetJSON(BaseSignpostLinkset):
     mediatype = 'application/linkset+json'
@@ -114,11 +123,8 @@ class SignpostLinksetJSON(BaseSignpostLinkset):
 
         for link in self._each_link():
             link_entry = {'href': link.target_uri}
-
-            for key, value in link.target_attrs:
-                link_entry[key] = value
-
-            grouped_links[link.context_uri][link.relation_uri].append(link_entry)
+            link_entry.update(link.target_attrs)
+            grouped_links[link.anchor_uri][link.relation].append(link_entry)
 
         linkset = []
         for anchor, relations in grouped_links.items():
