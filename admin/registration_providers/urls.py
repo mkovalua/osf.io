@@ -1,6 +1,6 @@
 from django.urls import re_path
 from . import views
-from admin.providers.views import AddAdminOrModerator, RemoveAdminsAndModerators
+from admin.providers.views import AddAdminOrModerator, RemoveAdminsAndModerators, BulkChangeRegistrationProvider
 
 app_name = 'admin'
 
@@ -18,4 +18,5 @@ urlpatterns = [
     re_path(r'^(?P<registration_provider_id>[a-z0-9]+)/share_source/$', views.ShareSourceRegistrationProvider.as_view(), name='share_source'),
     re_path(r'^(?P<provider_id>[a-z0-9]+)/remove_admins_and_moderators/$', RemoveAdminsAndModerators.as_view(), name='remove_admins_and_moderators'),
     re_path(r'^(?P<provider_id>[a-z0-9]+)/add_admin_or_moderator/$', AddAdminOrModerator.as_view(), name='add_admin_or_moderator'),
+    re_path(r'^(?P<provider_id>[a-z0-9]+)/bulk_change/$', BulkChangeRegistrationProvider.as_view(), name='bulk_change'),
 ]

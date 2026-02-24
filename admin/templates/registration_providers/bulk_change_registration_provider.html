@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load static %}
+{% load render_bundle from webpack_loader %}
+{% block title %}
+    <title>Bulk Change Registration Provider</title>
+{% endblock title %}
+{% block content %}
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12 text-center">
+                <h2>{{ provider.name }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="row padded">
+    <div class="col-md-12">
+        <form method="POST" enctype="multipart/form-data" action="{% url 'registration_providers:bulk_change' provider_id=provider.id %}">
+            {% csrf_token %}
+            <label for="csv">Select Registry Guid CSV To change related providers</label>
+            <input type="file" class="form-control" name="csv" aria-describedby="csv" required>
+            <button type="submit" class="btn btn-primary mt-3">Bulk change registry provider</button>
+        </form>
+    </div>
+</div>
+{% endblock content %}
+{% block bottom_js %}
+    {% render_bundle 'registration-provider-page' %}
+{% endblock %}
